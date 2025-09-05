@@ -2,7 +2,7 @@ from core.imports import Flask, load_dotenv, request, jsonify, cloudinary
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt
 from core.models import User
-from routes import auth_bp
+from routes.auth import auth_bp
 
 def create_app():
     app = Flask(__name__)
