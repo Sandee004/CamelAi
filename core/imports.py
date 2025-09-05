@@ -1,4 +1,3 @@
-from twilio.rest import Client
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from flask_cors import CORS
@@ -19,3 +18,4 @@ import filetype
 import json
 from flask import Blueprint
 from sqlalchemy.exc import IntegrityError
+import cloudinary.uploader

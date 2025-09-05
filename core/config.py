@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+import cloudinary
 
 load_dotenv()
 
@@ -18,3 +19,9 @@ class Config:
     MAIL_DEFAULT_SENDER = os.getenv("USERNAME_FOR_EMAIL")
 
     
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
