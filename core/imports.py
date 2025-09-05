@@ -8,13 +8,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from flasgger import Swagger
 from datetime import datetime, timedelta, date
-import random
-import string
 import os
 from flask_bcrypt import Bcrypt
 import time
 from dotenv import load_dotenv
-import filetype
 import json
 from flask import Blueprint
 from sqlalchemy.exc import IntegrityError
