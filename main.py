@@ -21,13 +21,55 @@ def create_app():
 app = create_app()
 load_dotenv()
 
-
 @app.route('/ping')
 def ping():
     return "Pong", 200
 
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    """
+    Upload a file (image or video) to Cloudinary
+    ---
+    tags:
+      - Upload
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: formData
+        name: file
+        type: file
+        required: true
+        description: The file to upload (image or video)
+    responses:
+      200:
+        description: Successful upload
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Upload successful"
+            url:
+              type: string
+              example: "https://res.cloudinary.com/demo/image/upload/sample.jpg"
+      400:
+        description: No file provided
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "No file provided"
+      500:
+        description: Upload error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Some Cloudinary error message"
+    """
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
