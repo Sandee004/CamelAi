@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import cloudinary
+from openai import OpenAI
 
 load_dotenv()
 
@@ -9,6 +10,7 @@ class Config:
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
     MAIL_SERVER = 'smtp.zoho.com'

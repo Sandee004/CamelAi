@@ -20,6 +20,7 @@ def create_app():
 
 app = create_app()
 load_dotenv()
+client = Config.client
 
 
 def send_email(to, subject, body):
@@ -116,7 +117,6 @@ def auth():
     if not email or not phone or not password:
         return jsonify({"error": "Incomplete credentials."}), 400
 
-    # Check if user already exists
     existing_user = None
     if email:
         existing_user = User.query.filter_by(email=email).first()
@@ -137,7 +137,6 @@ def auth():
         if not temp_user:
             temp_user = TempUser(email=email, phone=phone, password_hash=password_hash)
             db.session.add(temp_user)
-
     
         otp = str(random.randint(100000, 999999))
         print(otp)
@@ -148,7 +147,6 @@ def auth():
             send_otp_email(email, otp)
         elif phone:
             send_sms_otp(phone, otp)
-
 
         db.session.commit()
         print("Added entry to db")
@@ -243,9 +241,69 @@ def verify_otp():
     }), 200
 
 
+@app.route('/api/rate-image', methods=["POST"])
+def rate_image():
+    """
+    Rate an uploaded image using OpenAI Vision model.
+    ---
+    tags:
+      - AI
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: formData
+        name: image
+        type: file
+        required: true
+    responses:
+      200:
+        description: Rating returned successfully
+        schema:
+          type: object
+          properties:
+            rating:
+              type: string
+              example: "8/10"
+      400:
+        description: Bad Request
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+    """
+    if 'image' not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    image_file = request.files['image']
+    
+    try:
+        # Send to OpenAI vision model
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Vision-capable model
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Rate this on a scale of 1-10"},
+                        {"type": "image", "image": image_file.read()}
+                    ]
+                }
+            ]
+        )
+
+        rating = response.choices[0].message["content"]
+        return jsonify({"rating": rating}), 200
+
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return jsonify({"error": "Failed to process image"}), 500
+
+
+"""
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    """
+    ""
     Upload a file (image or video) to Cloudinary
     ---
     tags:
@@ -286,7 +344,7 @@ def upload_file():
             error:
               type: string
               example: "Some Cloudinary error message"
-    """
+    ""
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -300,7 +358,7 @@ def upload_file():
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+"""
 
 if __name__ == "__main__":
     with app.app_context():
