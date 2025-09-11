@@ -1,7 +1,7 @@
-from core.imports import Flask, load_dotenv, request, jsonify, cloudinary, random, datetime, timedelta, render_template, Message, create_access_token, Client
+from core.imports import Flask, load_dotenv, request, jsonify, cloudinary, random, datetime, timedelta, render_template, Message, create_access_token, Client, get_jwt_identity, jwt_required, base64
 from core.config import Config
-from core.extensions import db, jwt, mail, swagger, cors, bcrypt
-from core.models import TempUser, User
+from core.extensions import db, jwt, mail, swagger, cors, bcrypt, migrate
+from core.models import TempUser, User, Conversation
 from routes.auth import auth_bp
 
 def create_app():
@@ -14,6 +14,7 @@ def create_app():
     swagger.init_app(app)
     cors.init_app(app)
     bcrypt.init_app(app)
+    migrate.init_app(app, db)
 
     app.register_blueprint(auth_bp)
     return app
@@ -74,13 +75,16 @@ def ping():
 @app.route('/api/auth', methods=["POST"])
 def auth():
     """
-    Request OTP for authentication
+    Request OTP for authentication (login or signup)
     ---
     tags:
       - Authentication
+    consumes:
+      - application/json
     parameters:
       - in: body
         name: body
+        required: true
         schema:
           type: object
           properties:
@@ -90,9 +94,6 @@ def auth():
             phone:
               type: string
               example: "+1234567890"
-            password:
-              type: string
-              example: "password123"
     responses:
       200:
         description: OTP sent successfully
@@ -112,49 +113,50 @@ def auth():
     """
     email = request.json.get('email')
     phone = request.json.get('phone')
-    password = request.json.get('password')
 
-    if not email or not phone or not password:
-        return jsonify({"error": "Incomplete credentials."}), 400
-
-    existing_user = None
-    if email:
-        existing_user = User.query.filter_by(email=email).first()
-    elif phone:
-        existing_user = User.query.filter_by(phone=phone).first()
-    
-    if existing_user:
-        return jsonify({"error": "Account has already been created and verified. Login to continue"}), 400
+    if not email and not phone:
+        return jsonify({"error": "Email or phone is required"}), 400
 
     try:
-        temp_user = None
+        # Look up existing user
+        existing_user = None
         if email:
-            temp_user = TempUser.query.filter_by(email=email).first()
+            existing_user = User.query.filter_by(email=email).first()
         elif phone:
-            temp_user = TempUser.query.filter_by(phone=phone).first()
+            existing_user = User.query.filter_by(phone=phone).first()
 
-        password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        if not temp_user:
-            temp_user = TempUser(email=email, phone=phone, password_hash=password_hash)
-            db.session.add(temp_user)
-    
+        if existing_user:
+            # If user exists, create/update OTP in TempUser table
+            temp_user = TempUser.query.filter_by(
+                email=existing_user.email if email else None,
+                phone=existing_user.phone if phone else None
+            ).first()
+        else:
+            # If new user, create TempUser record
+            temp_user = None
+            if email:
+                temp_user = TempUser.query.filter_by(email=email).first()
+            elif phone:
+                temp_user = TempUser.query.filter_by(phone=phone).first()
+            if not temp_user:
+                temp_user = TempUser(email=email, phone=phone)
+                db.session.add(temp_user)
+
+        # Always set a new OTP
         otp = str(random.randint(100000, 999999))
-        print(otp)
+        print(f"Generated OTP: {otp}")
         temp_user.otp_code = otp
         temp_user.otp_created_at = datetime.utcnow()
 
+        # Send OTP
         if email:
             send_otp_email(email, otp)
         elif phone:
             send_sms_otp(phone, otp)
 
         db.session.commit()
-        print("Added entry to db")
-        
-        if email:
-            return jsonify({"message": f"OTP sent to {email}"}), 200
-        else:
-            return jsonify({"message": f"OTP sent to {phone}"}), 200
+
+        return jsonify({"message": f"OTP sent to {email or phone}"}), 200
 
     except Exception as e:
         db.session.rollback()
@@ -165,15 +167,19 @@ def auth():
 @app.route('/api/verify-otp', methods=['POST'])
 def verify_otp():
     """
-    Verify OTP
+    Verify OTP and login/signup user
     ---
     tags:
       - Authentication
+    consumes:
+      - application/json
     parameters:
       - in: body
         name: body
         schema:
           type: object
+          required:
+            - otp
           properties:
             email:
               type: string
@@ -181,6 +187,7 @@ def verify_otp():
               type: string
             otp:
               type: string
+              example: "123456"
     responses:
       200:
         description: OTP verified successfully
@@ -190,8 +197,14 @@ def verify_otp():
             message:
               type: string
               example: "OTP verified successfully"
+            access_token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            user_id:
+              type: integer
+              example: 1
       400:
-        description: Bad request (invalid or expired OTP)
+        description: Invalid or expired OTP
         schema:
           type: object
           properties:
@@ -205,14 +218,14 @@ def verify_otp():
             error:
               type: string
     """
-  
     email = request.json.get('email')
     phone = request.json.get('phone')
     otp = request.json.get('otp')
 
     if not otp or (not email and not phone):
-        return jsonify({"error": "OTP and email or phone is required"}), 400
+        return jsonify({"error": "OTP and email/phone are required"}), 400
 
+    # Find temp_user by OTP
     if email:
         temp_user = TempUser.query.filter_by(email=email, otp_code=otp).first()
     else:
@@ -220,20 +233,32 @@ def verify_otp():
 
     if not temp_user:
         return jsonify({"error": "Invalid email/phone or OTP"}), 404
-    
+
     expiry_time = temp_user.otp_created_at + timedelta(minutes=20)
     if datetime.utcnow() > expiry_time:
         db.session.delete(temp_user)
         db.session.commit()
         return jsonify({"error": "OTP expired. Please request a new one."}), 400
 
-  
-    user = User(email=temp_user.email, phone=temp_user.phone, password_hash=temp_user.password_hash)
-    db.session.add(user)
+    # If user already exists, just fetch it
+    user = None
+    if temp_user.email:
+        user = User.query.filter_by(email=temp_user.email).first()
+    elif temp_user.phone:
+        user = User.query.filter_by(phone=temp_user.phone).first()
+
+    # Otherwise, create new user
+    if not user:
+        user = User(email=temp_user.email, phone=temp_user.phone)
+        db.session.add(user)
+
+    # Clean up temp user
     db.session.delete(temp_user)
     db.session.commit()
 
-    access_token = create_access_token(identity=user.id, expires_delta=timedelta(hours=24))
+    # Issue token valid for 30 days
+    access_token = create_access_token(identity=user.id, expires_delta=timedelta(days=30))
+
     return jsonify({
         "message": "OTP verified successfully",
         "access_token": access_token,
@@ -242,8 +267,111 @@ def verify_otp():
 
 
 @app.route('/api/rate-image', methods=["POST"])
+@jwt_required(optional=True)
 def rate_image():
     """
+    Rate an uploaded image using OpenAI Vision model.
+    ---
+    tags:
+      - AI
+    consumes:
+      - multipart/form-data
+    parameters:
+      - in: header
+        name: Authorization
+        type: string
+        required: false
+        description: "JWT access token. Format: Bearer <token>"
+      - in: formData
+        name: image
+        type: file
+        required: true
+        description: "Image file to rate"
+    responses:
+      200:
+        description: Rating returned successfully
+        schema:
+          type: object
+          properties:
+            rating:
+              type: string
+              example: "8/10"
+      400:
+        description: Bad Request
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+      401:
+        description: Unauthorized (invalid token)
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+      500:
+        description: Server Error
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+    """
+    if 'image' not in request.files:
+        return jsonify({"error": "No image uploaded"}), 400
+
+    image_file = request.files['image']
+    user_id = get_jwt_identity()
+
+    try:
+        # If logged in → upload to Cloudinary
+        if user_id:
+            upload_result = cloudinary.uploader.upload(image_file)
+            image_url = upload_result['secure_url']
+        else:
+            # Guests → base64 encode in data URI
+            image_file.seek(0)
+            image_url = f"data:image/jpeg;base64,{base64.b64encode(image_file.read()).decode()}"
+
+        # Send to OpenAI vision model
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Rate this on a scale of 1-10"},
+                        {"type": "image_url", "image_url": {"url": image_url}}
+                    ]
+                }
+            ]
+        )
+
+        rating = response.choices[0].message["content"]
+
+        # Save conversation if logged in
+        if user_id:
+            convo = Conversation(
+                user_id=user_id,
+                prompt="Rate this on a scale of 1-10",
+                response=rating,
+                image_url=image_url
+            )
+            db.session.add(convo)
+            db.session.commit()
+
+        return jsonify({"rating": rating}), 200
+
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        return jsonify({"error": "Failed to process image"}), 500
+
+
+"""
+@app.route('/api/rate-image', methods=["POST"])
+def rate_image():
+    ""
     Rate an uploaded image using OpenAI Vision model.
     ---
     tags:
@@ -271,7 +399,7 @@ def rate_image():
           properties:
             error:
               type: string
-    """
+    ""
     if 'image' not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
@@ -300,7 +428,7 @@ def rate_image():
         return jsonify({"error": "Failed to process image"}), 500
 
 
-"""
+""
 @app.route("/upload", methods=["POST"])
 def upload_file():
     ""
