@@ -1,4 +1,4 @@
-from core.imports import Flask, load_dotenv, request, jsonify, cloudinary, random, datetime, timedelta, render_template, Message, create_access_token, Client, get_jwt_identity, jwt_required, base64
+from core.imports import Flask, load_dotenv, request, jsonify, cloudinary, random, datetime, timedelta, render_template, Message, create_access_token, Client, get_jwt_identity, jwt_required, base64, re
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, migrate
 from core.models import TempUser, User, Conversation
@@ -348,7 +348,14 @@ def rate_image():
             ]
         )
 
-        rating = response.choices[0].message["content"]
+        raw_rating = response.choices[0].message.content
+
+        # Extract clean "X/10" format
+        match = re.search(r'(\d{1,2})\s*/\s*10', raw_rating)
+        if match:
+            rating = f"{match.group(1)}/10"
+        else:
+            rating = raw_rating.strip()
 
         # Save conversation if logged in
         if user_id:
