@@ -20,6 +20,11 @@ class Config:
     MAIL_PASSWORD = os.getenv("PASSWORD_FOR_EMAIL")
     MAIL_DEFAULT_SENDER = os.getenv("USERNAME_FOR_EMAIL")
 
+    # Unifonic SMS Configuration
+    UNIFONIC_APP_SID = "s9XHrhUdvbOsEnOOej8gfypPpcaAq1"
+    UNIFONIC_SENDER_ID = "LE MURE"
+    UNIFONIC_API_URL = "https://el.cloud.unifonic.com/rest/SMS/messages"
+
     
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),

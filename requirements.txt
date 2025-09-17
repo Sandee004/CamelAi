@@ -92,6 +92,7 @@ OWSLib==0.32.0
 packaging==24.1
 parsimonious==0.10.0
 pillow==11.0.0
+imagehash==4.3.2
 propcache==0.2.0
 proto-plus==1.24.0
 protobuf==5.28.2
@@ -130,7 +131,7 @@ tomli==2.2.1
 tomli_w==1.1.0
 toolz==1.0.0
 tqdm==4.66.5
-twilio==9.6.3
+
 types-requests==2.32.0.20241016
 typing-inspect==0.9.0
 typing_extensions==4.12.2
