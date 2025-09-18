@@ -17,11 +17,29 @@ def create_app():
     jwt.init_app(app)
     mail.init_app(app)
     swagger.init_app(app)
-    cors.init_app(app)
+    
+    # Configure CORS with specific settings
+    cors.init_app(app, 
+                  origins=Config.CORS_ORIGINS,
+                  methods=Config.CORS_METHODS,
+                  allow_headers=Config.CORS_HEADERS,
+                  supports_credentials=True)
+    
     bcrypt.init_app(app)
     migrate.init_app(app, db)
 
     app.register_blueprint(auth_bp)
+    
+    # Add OPTIONS handler for all routes to handle CORS preflight requests
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            response = jsonify({})
+            response.headers.add("Access-Control-Allow-Origin", "*")
+            response.headers.add('Access-Control-Allow-Headers', "*")
+            response.headers.add('Access-Control-Allow-Methods', "*")
+            return response
+    
     return app
 
 app = create_app()
@@ -844,7 +862,7 @@ def rate_image():
             convo = Conversation(
                 user_id=user_id,
                 prompt="Multi-category beauty rating analysis",
-                response=json.dumps(final_response),
+                ai_response=json.dumps(final_response),
                 image_url=image_url
             )
             db.session.add(convo)
@@ -1165,7 +1183,7 @@ def compare_beauty():
             convo = Conversation(
                 user_id=user_id,
                 prompt=f"Beauty comparison analysis (Gender: {gender})",
-                response=json.dumps(final_response),
+                ai_response=json.dumps(final_response),
                 image_url=f"{image_url_1} vs {image_url_2}"
             )
             db.session.add(convo)

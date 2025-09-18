@@ -21,6 +21,7 @@ class User(db.Model):
 class Conversation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    prompt = db.Column(db.String(500), nullable=True)
     image_url = db.Column(db.String(500), nullable=True)
     ai_response = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
