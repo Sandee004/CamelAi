@@ -88,6 +88,7 @@ oauthlib==3.2.2
 openai==1.107.0
 opencage==3.0.3
 opencv-python==4.11.0.86
+scipy==1.11.4
 OWSLib==0.32.0
 packaging==24.1
 parsimonious==0.10.0

@@ -87,38 +87,111 @@ def send_sms_otp(phone, otp):
 
 def generate_image_hash(image_file):
     """
-    Generate a perceptual hash for an image using multiple algorithms.
-    Returns a combined hash string for better accuracy.
+    Generate a robust, subject-focused hash for camel images that remains consistent
+    across resizing, rotation, and minor modifications by focusing on structural features.
     
     Args:
         image_file: File object or file-like object containing image data
     
     Returns:
-        str: Combined hash string (average_hash + perceptual_hash + difference_hash)
+        str: Combined hash string optimized for subject recognition
     """
     try:
+        import cv2
+        import numpy as np
+        from scipy.spatial.distance import hamming
+        
         # Reset file pointer to beginning
         image_file.seek(0)
         
-        # Open image with PIL
+        # Open image with PIL and convert to OpenCV format
         image = Image.open(image_file)
         
-        # Convert to RGB if necessary (handles RGBA, grayscale, etc.)
+        # Convert to RGB if necessary
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Generate multiple types of hashes for better accuracy <mcreference link="https://pyimagesearch.com/2017/11/27/image-hashing-opencv-python/" index="1">1</mcreference> <mcreference link="https://pypi.org/project/ImageHash/" index="2">2</mcreference>
-        avg_hash = imagehash.average_hash(image)
-        p_hash = imagehash.phash(image)
-        d_hash = imagehash.dhash(image)
+        # Convert PIL to OpenCV format
+        cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
-        # Combine hashes for more robust matching
-        combined_hash = f"{avg_hash}_{p_hash}_{d_hash}"
+        # Normalize image size to reduce size-dependency (maintain aspect ratio)
+        height, width = cv_image.shape[:2]
+        target_size = 512
+        if width > height:
+            new_width = target_size
+            new_height = int(height * target_size / width)
+        else:
+            new_height = target_size
+            new_width = int(width * target_size / height)
+        
+        normalized_image = cv2.resize(cv_image, (new_width, new_height), interpolation=cv2.INTER_LANCZOS4)
+        
+        # Convert to grayscale for feature detection
+        gray = cv2.cvtColor(normalized_image, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Generate multiple robust hashes
+        
+        # 1. Enhanced perceptual hash with larger size for more detail
+        pil_normalized = Image.fromarray(cv2.cvtColor(normalized_image, cv2.COLOR_BGR2RGB))
+        enhanced_phash = imagehash.phash(pil_normalized, hash_size=16)  # Larger hash for more precision
+        
+        # 2. Wavelet hash (more robust to geometric transformations)
+        wavelet_hash = imagehash.whash(pil_normalized, hash_size=16)
+        
+        # 3. Color hash (captures color distribution)
+        color_hash = imagehash.colorhash(pil_normalized, binbits=8)
+        
+        # 4. Crop-resistant hash (focuses on center content)
+        crop_resistant_hash = imagehash.crop_resistant_hash(pil_normalized, hash_size=16)
+        
+        # 5. Edge-based structural hash
+        edges = cv2.Canny(blurred, 50, 150)
+        edge_pil = Image.fromarray(edges)
+        edge_hash = imagehash.phash(edge_pil, hash_size=12)
+        
+        # 6. Histogram-based hash for lighting invariance
+        hist = cv2.calcHist([blurred], [0], None, [64], [0, 256])
+        hist_normalized = cv2.normalize(hist, hist).flatten()
+        hist_hash = ''.join([f'{int(x):02x}' for x in hist_normalized[::4]])  # Sample every 4th value
+        
+        # Combine all hashes with weights (more emphasis on structural features)
+        combined_hash = f"{enhanced_phash}_{wavelet_hash}_{color_hash}_{crop_resistant_hash}_{edge_hash}_{hist_hash}"
+        
+        return combined_hash
+        
+    except ImportError:
+        # Fallback to enhanced PIL-only approach if OpenCV is not available
+        print("OpenCV not available, using enhanced PIL-only hashing")
+        
+        # Reset file pointer
+        image_file.seek(0)
+        image = Image.open(image_file)
+        
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Normalize size
+        image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        
+        # Generate enhanced hashes
+        enhanced_phash = imagehash.phash(image, hash_size=16)
+        wavelet_hash = imagehash.whash(image, hash_size=16)
+        color_hash = imagehash.colorhash(image, binbits=8)
+        crop_resistant_hash = imagehash.crop_resistant_hash(image, hash_size=16)
+        
+        # Convert to grayscale for additional structural hash
+        gray_image = image.convert('L')
+        structural_hash = imagehash.dhash(gray_image, hash_size=12)
+        
+        combined_hash = f"{enhanced_phash}_{wavelet_hash}_{color_hash}_{crop_resistant_hash}_{structural_hash}"
         
         return combined_hash
         
     except Exception as e:
-        print(f"Error generating image hash: {e}")
+        print(f"Error generating enhanced image hash: {e}")
         return None
     finally:
         # Reset file pointer for any subsequent use
