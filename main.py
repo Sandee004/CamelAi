@@ -757,7 +757,7 @@ def rate_image():
                     messages = prompt_loader.build_messages(category_name, image_url)
                     
                     response = await async_client.chat.completions.create(
-                        model="gpt-5",
+                        model="gpt-5.1",
                         messages=[
                             {"role": "system", "content": system_prompt}
                         ] + messages,
