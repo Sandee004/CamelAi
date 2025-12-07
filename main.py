@@ -857,8 +857,15 @@ def rate_image():
                 "category_scores": category_scores
             }
         
-        # Run the validation and analysis
-        result = asyncio.run(run_validation_and_analysis())
+        # Run the validation and analysis with proper cleanup
+        async def run_with_cleanup():
+            try:
+                return await run_validation_and_analysis()
+            finally:
+                # Properly close the async client before the event loop closes
+                await async_client.close()
+        
+        result = asyncio.run(run_with_cleanup())
         
         # Handle validation errors
         if "error" in result:
@@ -1191,8 +1198,15 @@ def compare_beauty():
             
             return camel_1_result, camel_2_result
         
-        # Run the comparison analysis
-        camel_1_result, camel_2_result = asyncio.run(run_comparison_analysis())
+        # Run the comparison analysis with proper cleanup
+        async def run_with_cleanup():
+            try:
+                return await run_comparison_analysis()
+            finally:
+                # Properly close the async client before the event loop closes
+                await async_client.close()
+        
+        camel_1_result, camel_2_result = asyncio.run(run_with_cleanup())
         
         # Handle validation errors for either camel
         if "error" in camel_1_result:
