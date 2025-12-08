@@ -815,7 +815,7 @@ def rate_image():
                     all_attributes.extend(category_data['attributes'])
             
             # Calculate overall score using attribute-specific weights
-            overall_score = calculate_weighted_score(all_attributes)
+            overall_score = calculate_weighted_score(all_attributes, gender)
             
             # Get attribute weights for response
             attribute_weights = get_all_weights()
@@ -1155,7 +1155,7 @@ def compare_beauty():
                     all_attributes.extend(category_data['attributes'])
             
             # Calculate overall score using attribute-specific weights
-            overall_score = calculate_weighted_score(all_attributes)
+            overall_score = calculate_weighted_score(all_attributes, gender)
             
             # Add category scores to each beauty rating
             for category_name, category_data in beauty_ratings.items():
