@@ -62,15 +62,52 @@ class PromptLoader:
         
         return messages
     
-    def get_system_prompt(self, category: str) -> str:
-        """Get the system prompt for a specific category."""
+    def get_system_prompt(self, category: str, gender: str = None) -> str:
+        """Get the system prompt for a specific category, optionally enhanced with gender context."""
         prompt_data = self.load_prompt(category)
         system_prompt = prompt_data["system_prompt"]
         
         # Handle both old string format and new object format
         if isinstance(system_prompt, dict):
-            return system_prompt.get("text", "")
-        return system_prompt
+            prompt_text = system_prompt.get("text", "")
+        else:
+            prompt_text = system_prompt
+        
+        # Inject gender context if provided
+        if gender and gender.lower() in ["male", "female"]:
+            gender_context = f"\n\n# Gender Context (Provided)\nThe camel's gender has been identified as **{gender.upper()}**. Please apply the {gender.upper()}-specific rules strictly when evaluating attributes. If the visual characteristics do not match the provided gender, note this in your analysis but still apply the gender-specific scoring guidelines.\n"
+            # Insert gender context after the Instructions section (before Workflow Checklist)
+            if "# Workflow Checklist" in prompt_text:
+                # Insert right before Workflow Checklist
+                workflow_pos = prompt_text.find("# Workflow Checklist")
+                prompt_text = prompt_text[:workflow_pos] + gender_context + prompt_text[workflow_pos:]
+            elif "# Instructions" in prompt_text:
+                # Find the end of Instructions section and insert before next major section
+                instructions_end = prompt_text.find("# Instructions")
+                if instructions_end != -1:
+                    # Find the next major section
+                    next_section = prompt_text.find("\n\n#", instructions_end + 15)
+                    if next_section != -1:
+                        prompt_text = prompt_text[:next_section] + gender_context + prompt_text[next_section:]
+                    else:
+                        # If no next section found, append after Instructions
+                        instructions_line_end = prompt_text.find("\n\n", instructions_end)
+                        if instructions_line_end != -1:
+                            prompt_text = prompt_text[:instructions_line_end] + gender_context + prompt_text[instructions_line_end:]
+            else:
+                # If structure is different, insert after first major section
+                first_section_end = prompt_text.find("\n\n#", 0)
+                if first_section_end != -1:
+                    # Find end of first section
+                    second_section = prompt_text.find("\n\n#", first_section_end + 3)
+                    if second_section != -1:
+                        prompt_text = prompt_text[:second_section] + gender_context + prompt_text[second_section:]
+                    else:
+                        prompt_text = gender_context + prompt_text
+                else:
+                    prompt_text = gender_context + prompt_text
+        
+        return prompt_text
     
     def get_available_categories(self) -> List[str]:
         """Get list of available beauty categories."""

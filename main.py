@@ -753,7 +753,7 @@ def rate_image():
                 """Rate a specific beauty category asynchronously using external prompts"""
                 try:
                     # Get system prompt and build messages with predefined samples
-                    system_prompt = prompt_loader.get_system_prompt(category_name)
+                    system_prompt = prompt_loader.get_system_prompt(category_name, gender=gender if gender != 'unknown' else None)
                     messages = prompt_loader.build_messages(category_name, image_url)
                     
                     response = await async_client.chat.completions.create(
@@ -1093,7 +1093,7 @@ def compare_beauty():
                 """Rate a specific beauty category asynchronously using external prompts"""
                 try:
                     # Get system prompt and build messages with predefined samples
-                    system_prompt = prompt_loader.get_system_prompt(category_name)
+                    system_prompt = prompt_loader.get_system_prompt(category_name, gender=gender if gender != 'unknown' else None)
                     messages = prompt_loader.build_messages(category_name, image_url)
                     
                     response = await async_client.chat.completions.create(
