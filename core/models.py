@@ -33,7 +33,7 @@ class BeautyResult(db.Model):
     __tablename__ = 'beauty_results'
     
     id = db.Column(db.Integer, primary_key=True)
-    image_hash = db.Column(db.String(200), unique=True, nullable=False, index=True)
+    image_hash = db.Column(db.String(500), unique=True, nullable=False, index=True)
     image_url = db.Column(db.String(500), nullable=True)
     beauty_ratings = db.Column(db.JSON, nullable=True)  # Store the complete beauty analysis results (null for validation failures)
     overall_score = db.Column(db.Float, nullable=True)
