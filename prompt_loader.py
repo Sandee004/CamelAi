@@ -26,20 +26,66 @@ class PromptLoader:
         return prompt_data
     
     def build_messages(self, category: str, user_image_url: str, user_text: str = None) -> List[Dict[str, Any]]:
-        """Build complete message list including predefined messages and user message."""
+        """
+        Build the full message list including dynamic Golden Examples (Few-Shot Learning).
+        """
+        # 1. Fetch "Golden Examples" (Approved corrections)
+        try:
+            from core.models import RatingFeedback
+            # Get up to 3 most recent approved feedback items for this category
+            golden_examples = RatingFeedback.query.filter_by(
+                category=category, 
+                status='approved'
+            ).order_by(RatingFeedback.created_at.desc()).limit(3).all()
+        except Exception as e:
+            # Fallback if DB is not ready or context is missing
+            # print(f"Error fetching golden examples: {e}")
+            golden_examples = []
+
         prompt_data = self.load_prompt(category)
+        messages = []
+
+        # 2. Add Predefined/Static Messages (Reference Images)
+        # Strategy: usage static examples as baseline, but if we have golden examples, we might mix them
+        # For now, let's KEEP static examples but append golden ones as "User Corrections"
+        # OR: specific override strategy.
+        # Let's use: Static Examples -> Golden Examples -> Target Image
         
-        # Start with predefined messages
-        messages = prompt_data["predefined_messages"].copy()
+        static_messages = prompt_data.get("predefined_messages", [])
+        messages.extend(static_messages)
         
-        # Build user message with the actual image to analyze
-        user_content = []
-        
-        if user_text:
-            user_content.append({
-                "type": "text",
-                "text": user_text
+        # 3. Inject Golden Examples
+        if golden_examples:
+            messages.append({
+                "role": "user",
+                "content": [{
+                    "type": "text", 
+                    "text": "IMPORTANT: The following are EXPERT-VALIDATED examples from your training database. These corrections take precedence over general rules. Study them carefully:"
+                }]
             })
+            
+            for example in golden_examples:
+                # We need to format the corrected score into a clear example
+                import json
+                corrected_json_str = json.dumps(example.corrected_score, indent=2)
+                reasoning = example.reasoning if example.reasoning else "Expert correction."
+                
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": example.image_url}},
+                        {"type": "text", "text": "Rate this camel."}
+                    ]
+                })
+                messages.append({
+                    "role": "assistant",
+                    "content": f"Based on expert feedback, here is the correct rating:\n{corrected_json_str}\n\nKey Reasoning: {reasoning}"
+                })
+
+        # 4. Add the User's Target Image
+        user_content = []
+        if user_text:
+            user_content.append({"type": "text", "text": user_text})
         
         user_content.extend([
             {
@@ -48,13 +94,10 @@ class PromptLoader:
             },
             {
                 "type": "image_url",
-                "image_url": {
-                    "url": user_image_url
-                }
+                "image_url": {"url": user_image_url}
             }
         ])
         
-        # Add the user message
         messages.append({
             "role": "user",
             "content": user_content

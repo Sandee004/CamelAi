@@ -2,7 +2,7 @@ from core.imports import Flask, load_dotenv, request, jsonify, cloudinary, rando
 from prompt_loader import PromptLoader
 from core.config import Config
 from core.extensions import db, jwt, mail, swagger, cors, bcrypt, migrate
-from core.models import TempUser, User, Conversation, BeautyResult
+from core.models import TempUser, User, Conversation, BeautyResult, RatingFeedback
 from routes.auth import auth_bp
 from attribute_weights import calculate_weighted_score, get_all_weights
 import imagehash
@@ -1407,3 +1407,80 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+
+@app.route('/api/feedback/submit', methods=['POST'])
+@jwt_required()
+def submit_feedback():
+    """
+    Submit expert feedback/correction for a camel rating.
+    This creates a "Golden Example" candidate for the learning system.
+    ---
+    tags:
+      - Feedback
+    """
+    from core.models import RatingFeedback
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    required_fields = ['image_url', 'category', 'corrected_score']
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+            
+    try:
+        feedback = RatingFeedback(
+            image_url=data['image_url'],
+            category=data['category'],
+            original_score=data.get('original_score'),
+            corrected_score=data['corrected_score'],
+            reasoning=data.get('reasoning'),
+            status='pending'  # Needs approval to become a training example
+        )
+        
+        db.session.add(feedback)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Feedback submitted successfully",
+            "feedback_id": feedback.id,
+            "status": "pending"
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error submitting feedback: {e}")
+        return jsonify({"error": "Failed to submit feedback"}), 500
+
+@app.route('/api/feedback/approve/<int:feedback_id>', methods=['POST'])
+@jwt_required()
+def approve_feedback(feedback_id):
+    """
+    Approve a feedback item to become a "Golden Example" for dynamic learning.
+    ---
+    tags:
+      - Feedback
+    """
+    from core.models import RatingFeedback
+    
+    # Ideally check for admin role here
+    
+    feedback = RatingFeedback.query.get(feedback_id)
+    if not feedback:
+        return jsonify({"error": "Feedback item not found"}), 404
+        
+    try:
+        feedback.status = 'approved'
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Feedback approved and added to knowledge base",
+            "feedback_id": feedback.id,
+            "status": "approved"
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error approving feedback: {e}")
+        return jsonify({"error": "Failed to approve feedback"}), 500

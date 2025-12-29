@@ -50,3 +50,19 @@ class BeautyResult(db.Model):
     
     def __repr__(self):
         return f'<BeautyResult {self.id}: {self.image_hash[:16]}...>'
+
+class RatingFeedback(db.Model):
+    __tablename__ = 'rating_feedback'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    image_url = db.Column(db.String(500), nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # head, neck, body, leg
+    original_score = db.Column(db.JSON, nullable=True)
+    corrected_score = db.Column(db.JSON, nullable=False)
+    reasoning = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<RatingFeedback {self.id}: {self.category} - {self.status}>'
