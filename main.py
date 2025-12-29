@@ -145,7 +145,7 @@ def generate_image_hash(image_file):
         color_hash = imagehash.colorhash(pil_normalized, binbits=8)
         
         # 4. Crop-resistant hash (focuses on center content)
-        crop_resistant_hash = imagehash.crop_resistant_hash(pil_normalized, hash_size=16)
+        crop_resistant_hash = imagehash.crop_resistant_hash(pil_normalized)
         
         # 5. Edge-based structural hash
         edges = cv2.Canny(blurred, 50, 150)
@@ -180,7 +180,7 @@ def generate_image_hash(image_file):
         enhanced_phash = imagehash.phash(image, hash_size=16)
         wavelet_hash = imagehash.whash(image, hash_size=16)
         color_hash = imagehash.colorhash(image, binbits=8)
-        crop_resistant_hash = imagehash.crop_resistant_hash(image, hash_size=16)
+        crop_resistant_hash = imagehash.crop_resistant_hash(image)
         
         # Convert to grayscale for additional structural hash
         gray_image = image.convert('L')

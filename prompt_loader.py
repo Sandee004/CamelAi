@@ -40,6 +40,8 @@ class PromptLoader:
         except Exception as e:
             # Fallback if DB is not ready or context is missing
             # print(f"Error fetching golden examples: {e}")
+            from core.extensions import db
+            db.session.rollback()
             golden_examples = []
 
         prompt_data = self.load_prompt(category)
