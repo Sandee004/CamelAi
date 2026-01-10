@@ -927,14 +927,18 @@ def rate_image():
         # Save to cache if we have a valid image hash
         if image_hash:
             try:
-                validation_data = result.get("validation", {})
-                
+                # Prepare cache-friendly category scores (also hiding leg)
+                cache_category_scores = category_scores.copy()
+                if 'leg' in cache_category_scores:
+                    del cache_category_scores['leg']
+
                 beauty_result = BeautyResult(
                     image_hash=image_hash,
                     image_url=image_url,
-                    beauty_ratings=beauty_ratings,
+                    # Save the sanitized version to DB as requested ("cache result dosnt have leg too")
+                    beauty_ratings=client_beauty_ratings,
                     overall_score=overall_score,
-                    category_scores=category_scores,
+                    category_scores=cache_category_scores,
                     processing_time=processing_time,
                     validation_result=validation_data,
                     validation_error=None,  # No error for successful analysis
