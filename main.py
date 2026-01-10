@@ -811,6 +811,10 @@ def rate_image():
                 if isinstance(category_data, dict) and category_data.get('error') is True:
                     continue
                     
+                # Skip 'leg' category for overall score calculation
+                if category_name == 'leg':
+                    continue
+                    
                 if isinstance(category_data, dict) and 'attributes' in category_data:
                     all_attributes.extend(category_data['attributes'])
             
@@ -904,9 +908,15 @@ def rate_image():
         # Get attribute weights for response
         attribute_weights = get_all_weights()
         
+        # Prepare client-facing beauty ratings (hiding leg section)
+        # Deep copy not strictly needed since we are just nulling a top-level key, but shallow copy is safer
+        client_beauty_ratings = beauty_ratings.copy()
+        if 'leg' in client_beauty_ratings:
+            client_beauty_ratings['leg'] = None
+            
         # Prepare final response
         final_response = {
-            "beauty_ratings": beauty_ratings,
+            "beauty_ratings": client_beauty_ratings,
             "overall_score": overall_score,
             "attribute_weights": attribute_weights,
             "categories_analyzed": result["categories_analyzed"],
@@ -1151,6 +1161,10 @@ def compare_beauty():
                 if isinstance(category_data, dict) and category_data.get('error') is True:
                     continue
                     
+                # Skip 'leg' category for overall score calculation
+                if category_name == 'leg':
+                    continue
+                    
                 if isinstance(category_data, dict) and 'attributes' in category_data:
                     all_attributes.extend(category_data['attributes'])
             
@@ -1239,19 +1253,28 @@ def compare_beauty():
         # Get attribute weights for response
         attribute_weights = get_all_weights()
         
+        # Prepare client-facing beauty ratings for comparison (hiding leg section)
+        camel_1_ratings = camel_1_result["beauty_ratings"].copy()
+        if 'leg' in camel_1_ratings:
+            camel_1_ratings['leg'] = None
+            
+        camel_2_ratings = camel_2_result["beauty_ratings"].copy()
+        if 'leg' in camel_2_ratings:
+            camel_2_ratings['leg'] = None
+
         # Prepare final response
         final_response = {
             "comparison_result": {
                 "camel_1": {
                     "image_url": image_url_1,
-                    "beauty_ratings": camel_1_result["beauty_ratings"],
+                    "beauty_ratings": camel_1_ratings,
                     "overall_score": camel_1_score,
                     "category_scores": camel_1_result["category_scores"],
                     "validation": camel_1_result["validation"]
                 },
                 "camel_2": {
                     "image_url": image_url_2,
-                    "beauty_ratings": camel_2_result["beauty_ratings"],
+                    "beauty_ratings": camel_2_ratings,
                     "overall_score": camel_2_score,
                     "category_scores": camel_2_result["category_scores"],
                     "validation": camel_2_result["validation"]
